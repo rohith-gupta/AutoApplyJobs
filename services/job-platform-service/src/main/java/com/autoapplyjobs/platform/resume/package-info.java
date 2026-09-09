@@ -1,12 +1,13 @@
 /**
  * Resume module.
  *
- * <p>Reserved for resume-specific logic (parsing, versioning, education/
- * experience/skill extraction). {@code docs/architecture.md} currently
- * describes table ownership as a single combined "User/Resume" module
- * ({@code app_user}, {@code resume} and related tables,
- * {@code user_job_preference}); whether resume logic lives here or under
- * {@link com.autoapplyjobs.platform.user} is not yet decided and should be
- * settled before entities are added to either package.
+ * <p>Owns {@code resume}, {@code resume_profile}, {@code resume_skill},
+ * {@code resume_experience}, and {@code resume_education}. Resume
+ * versioning, parsing, and skill/experience/education extraction.
+ * Publishes {@code resume.processed} and {@code resume.default.changed}.
+ * Account identity and preferences belong to
+ * {@link com.autoapplyjobs.platform.user} instead.
+ *
+ * <p>See {@code docs/domain-model.md} and {@code docs/database-design.md}.
  */
 package com.autoapplyjobs.platform.resume;

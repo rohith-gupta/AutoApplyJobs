@@ -20,10 +20,10 @@ Base package: `com.autoapplyjobs.platform`
 
 | Package | Purpose |
 |---|---|
-| `user` | User/Resume module (`app_user`, resume tables, `user_job_preference`) |
+| `user` | User module (`app_user`, `user_job_preference`) |
 | `company` | Company canonicalization (`company`) |
 | `job` | Job Processing (`job`, `job_source`, `job_location`, `skill`, `skill_alias`, `job_skill`, `raw_job_processing`) |
-| `resume` | Reserved for resume-specific logic — see the package's Javadoc; boundary with `user` not yet finalized |
+| `resume` | Resume module (`resume`, `resume_profile`, `resume_skill`, `resume_experience`, `resume_education`) |
 | `matching` | Matching (`job_match`, `job_match_skill`) |
 | `application` | Applications (`saved_job`, `passed_job`, `application`, `application_status_history`) |
 | `search` | Read-side search/filter over canonical jobs |

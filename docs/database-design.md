@@ -13,7 +13,7 @@ a real, concrete problem — raise it rather than deviating silently.
 
 | Table | Owner | Purpose |
 |---|---|---|
-| `app_user` | User/Resume | account holder (Java entity: `User`) |
+| `app_user` | User | account holder (Java entity: `User`) |
 | `company` | Job Processing | canonical employer, matched via signals |
 | `raw_job_posting` | Ingestion | immutable source-payload snapshot |
 | `raw_job_processing` | Job Processing | mutable processing record per raw posting + normalizer version |
@@ -23,12 +23,12 @@ a real, concrete problem — raise it rather than deviating silently.
 | `skill` | Job Processing | canonical skill taxonomy |
 | `skill_alias` | Job Processing | alternate terms mapped to a canonical skill, incl. self-alias |
 | `job_skill` | Job Processing | job ↔ skill |
-| `resume` | User/Resume | one immutable resume version |
-| `resume_profile` | User/Resume | parsed summary, 1:1 with resume |
-| `resume_skill` | User/Resume | resume ↔ skill |
-| `resume_experience` | User/Resume | one work-history entry |
-| `resume_education` | User/Resume | one education entry |
-| `user_job_preference` | User/Resume | 1:1 match-relevant preferences |
+| `resume` | Resume | one immutable resume version |
+| `resume_profile` | Resume | parsed summary, 1:1 with resume |
+| `resume_skill` | Resume | resume ↔ skill |
+| `resume_experience` | Resume | one work-history entry |
+| `resume_education` | Resume | one education entry |
+| `user_job_preference` | User | 1:1 match-relevant preferences |
 | `job_match` | Matching | scored job × resume × algorithm_version |
 | `job_match_skill` | Matching | skill-level breakdown of a job_match |
 | `saved_job` | Applications | user bookmark (hard-deletable) |

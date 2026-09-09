@@ -1,0 +1,36 @@
+name: autoapplyjobs
+
+# Local PostgreSQL only. No Kafka, OpenSearch, Redis, pgAdmin, or
+# application schema here — see infrastructure/docker/README.md.
+
+services:
+  postgres:
+    image: postgres:17.11-alpine
+    container_name: autoapplyjobs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      # Host port is configurable because 5432 may already be taken by a
+      # local PostgreSQL install - see .env.example.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Pinned to PostgreSQL 17 (not 18+) for now, because the Flyway
+      # version Spring Boot 3.5.16 manages doesn't yet officially support
+      # PostgreSQL 18. 17 uses the pre-18 Docker volume convention: data
+      # lives directly under /var/lib/postgresql/data, unlike 18+ images
+      # which use a version-specific subdirectory under /var/lib/postgresql
+      # (see https://github.com/docker-library/postgres/pull/1259).
+      - autoapplyjobs_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  autoapplyjobs_postgres_data:
+    name: autoapplyjobs_postgres_data

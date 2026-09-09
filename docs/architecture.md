@@ -43,7 +43,7 @@ User-driven, synchronous paths (straight through the API, no event needed):
   application, application_status_history  ◀── Applications module ◀── API
 
 Resume side:
-User uploads/edits resume ──▶ User/Resume module
+User uploads/edits resume ──▶ Resume module
     ├──▶ resume
     ├──▶ resume_profile
     ├──▶ resume_skill
@@ -62,7 +62,8 @@ Matching recomputes job_match for affected jobs
 | Ingestion Service | schedules connectors, writes `raw_job_posting` (immutable), publishes ingestion events |
 | Job Processing | normalizes, deduplicates, owns `company`, `job`, `job_source`, `job_location`, `skill`, `skill_alias`, `job_skill`, `raw_job_processing` |
 | Matching | scores resume × job, owns `job_match`, `job_match_skill` |
-| User/Resume | owns `app_user`, `resume`, `resume_profile`, `resume_skill`, `resume_experience`, `resume_education`, `user_job_preference` |
+| User | owns `app_user`, `user_job_preference` |
+| Resume | owns `resume`, `resume_profile`, `resume_skill`, `resume_experience`, `resume_education` |
 | Applications | owns `saved_job`, `passed_job`, `application`, `application_status_history` |
 | API Server | REST only; the sole thing the frontend talks to |
 | Frontend | browsing, resume management, application tracking UI |
@@ -72,7 +73,7 @@ Matching recomputes job_match for affected jobs
 Two deployable services, split along the ownership table above:
 
 - **`job-ingestion-service`** — connectors, scheduler, `raw_job_posting` only. Never writes canonical data.
-- **`job-platform-service`** — Job Processing, Matching, User/Resume, Applications, and the REST API surface consumed by the frontend.
+- **`job-platform-service`** — Job Processing, Matching, User, Resume, Applications, and the REST API surface consumed by the frontend.
 
 Neither service reaches into a table it doesn't own directly — it goes
 through the owning module's API or a published event. This boundary is what

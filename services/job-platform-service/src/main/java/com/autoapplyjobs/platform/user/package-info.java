@@ -1,10 +1,9 @@
 /**
- * User/Resume module.
+ * User module.
  *
- * <p>Owns {@code app_user}, {@code resume}, {@code resume_profile},
- * {@code resume_skill}, {@code resume_experience}, {@code resume_education},
- * and {@code user_job_preference}. Publishes {@code resume.processed} and
- * {@code resume.default.changed}.
+ * <p>Owns {@code app_user} and {@code user_job_preference}. Account
+ * identity and match-relevant preferences — resume data itself lives in
+ * {@link com.autoapplyjobs.platform.resume}.
  *
  * <p>See {@code docs/domain-model.md} and {@code docs/database-design.md}.
  */

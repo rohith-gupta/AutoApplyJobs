@@ -60,7 +60,7 @@ Full detail: `docs/database-design.md`. The schema below is **frozen** — do no
 
 - Only signals guaranteed unique in the source of truth are DB-unique (`(company_id, requisition_id)`, `job_source` external identity, `job_match`'s `(job_id, resume_id, algorithm_version)`). Fuzzy/candidate signals — `dedup_fingerprint`, `canonical_apply_url_hash`, `company.normalized_name`, `company.domain` — are indexed, never unique; merge decisions are application logic.
 - Every `skill` has exactly one canonical self-alias in `skill_alias`; all skill-term resolution goes through `skill_alias.normalized_alias`, never `skill.normalized_name` directly.
-- A user has at most one default resume (zero is valid for a new user); application logic ensures one exists before matching runs.
+- A user has at most one default resume (zero is valid for a new user); application logic ensures one exists before matching runs. A resume version's content and identity (`user_id`, `version_number`, `file_url`, `original_filename`, `uploaded_at`) are immutable after creation; `is_default` is mutable metadata and the one sanctioned exception. Switching a user's default resume flips `is_default` on existing rows — it does not create a new resume version, and historical `application` rows keep referencing the exact resume version used at application time regardless of later default changes. Service logic will perform the switch transactionally and publish `resume.default.changed` — not built yet.
 - Reapplication is allowed — there is no uniqueness constraint on `(user_id, job_id)` in `application`.
 - `raw_job_posting` is immutable and owned solely by ingestion. `raw_job_processing` is the separate, mutable Job Processing record — one row per `(raw_job_posting_id, normalizer_version)`, updated in place on retry (`processing_status`, `attempt_count`, `error_message`, `processed_at`); no per-attempt history is modeled.
 - `application` is archived, never hard-deleted (`archived_at`); its `application_status_history` is permanent and append-only. `saved_job` and `passed_job` may be hard-deleted freely.
@@ -75,7 +75,7 @@ Full detail: `docs/database-design.md`. The schema below is **frozen** — do no
 - Keep business logic out of controllers
 - Use constructor injection, not field injection
 - Never write directly to a table owned by another service/module — go through that module's API or published event
-- Immutable-by-design records (`raw_job_posting`, `resume` versions, `application_status_history` rows) are never updated in place after creation
+- Immutable-by-design records (`raw_job_posting`, `resume` versions, `application_status_history` rows) are never updated in place after creation — the one sanctioned exception is `resume.is_default`: switching a user's default resume updates that flag on existing rows and is not a new version (see Database Invariants)
 - No destructive deletes on `application` / `application_status_history` — archive instead (`archived_at`)
 - Status/enum-like DB columns are `TEXT` + `CHECK`, mapped to a Java enum — don't introduce native Postgres `ENUM` types
 - Schema changes go through Flyway once it's introduced — no ad hoc DDL

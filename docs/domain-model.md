@@ -45,9 +45,13 @@ lookup path.
 **JobSkill** — a skill required/associated with a `Job`, extracted during
 normalization.
 
-**Resume** — one immutable version of a user's resume. A `User` can have
-several over time; one is marked as the current default used for matching.
-A brand-new user may have zero.
+**Resume** — one version of a user's resume. Its content and identity
+(`user`, version number, file, uploaded-at) are immutable after creation;
+`isDefault` — which resume is the user's current default for matching — is
+the one field that ever changes post-creation. Flipping the default does
+not create a new version, and it never changes which resume version a past
+`Application` references. A `User` can have several resume versions over
+time; a brand-new user may have zero.
 
 **ResumeProfile** — the structured summary parsed from a `Resume` (name,
 headline, years of experience, summary). One per `Resume`.

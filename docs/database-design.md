@@ -230,6 +230,12 @@ Unique: `(user_id, version_number)`; `(user_id)` partial `WHERE is_default
 = true` — **at most one** default resume per user (zero is valid for a new
 user). Index: `user_id`.
 
+**Immutability rule (clarified):** every column is immutable after
+creation except `is_default`, which is the one sanctioned exception.
+Switching a user's default resume updates this flag on existing rows
+rather than creating a new resume version, and it never changes which
+resume version a historical `application.resume_id` points at.
+
 ### resume_profile
 
 | Column | Type | Null | Notes |

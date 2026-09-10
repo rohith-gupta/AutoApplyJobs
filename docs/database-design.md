@@ -171,7 +171,19 @@ IS NULL`. This pair is the external job identity. Index: `job_id`.
 | raw_location_text | TEXT | NULL | |
 | created_at | TIMESTAMPTZ | NOT NULL | |
 
-Unique: `(job_id, city, state_region, country, is_remote)`. Index: `job_id`.
+Unique: `(job_id, city, state_region, country, is_remote)`, with `NULL`
+values in `city`/`state_region` treated as **equal to each other** for
+this purpose (`UNIQUE NULLS NOT DISTINCT`, PostgreSQL 15+). Index:
+`job_id`.
+
+**History:** V1 defined this as a standard `UNIQUE` constraint, under
+which PostgreSQL's normal SQL-standard behavior (two `NULL`s are never
+equal) meant a row with `city`/`state_region` unset was effectively exempt
+- duplicate "remote, no city/state" rows for the same job could be
+inserted without limit. Confirmed via integration tests, then corrected in
+`V2__fix_job_location_uniqueness.sql` by switching to `NULLS NOT
+DISTINCT`, so `NULL` now participates in the uniqueness check like any
+other value. `V1__initial_schema.sql` itself was not modified.
 
 ### skill
 

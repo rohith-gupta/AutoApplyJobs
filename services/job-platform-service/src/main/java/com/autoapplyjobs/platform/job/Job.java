@@ -38,12 +38,20 @@ import java.util.UUID;
  *
  * <p><strong>{@code (company_id, requisition_id)} is the one true
  * DB-enforced identity signal</strong> - a <em>partial</em> unique index,
- * {@code WHERE requisition_id IS NOT NULL}. JPA's {@code @UniqueConstraint}
- * cannot express a {@code WHERE} clause and would misrepresent this as an
- * unconditional constraint, so - consistent with how
- * {@link com.autoapplyjobs.platform.resume.Resume}'s partial default-resume
- * index was handled - it is documented here only, not declared via
- * {@code @UniqueConstraint}. {@code dedup_fingerprint} and
+ * {@code WHERE requisition_id IS NOT NULL}. It remains database-enforced
+ * whenever {@code requisition_id} is non-null; JPA's
+ * {@code @UniqueConstraint} cannot express the {@code WHERE} clause and
+ * would misrepresent this as an unconditional constraint, so - consistent
+ * with how {@link com.autoapplyjobs.platform.resume.Resume}'s partial
+ * default-resume index was handled - it is documented here only, not
+ * declared via {@code @UniqueConstraint}. Both {@code company} and
+ * {@code requisitionId} are <em>canonical, correctable/enrichable</em>
+ * data, not fixed identity, and are JPA-updatable accordingly (clarified
+ * after the initial mapping step - see their field Javadoc below): a job
+ * may be created with no {@code requisition_id} and gain one once a
+ * source provides it, and a job may later be reassigned to a different,
+ * already-canonical {@link com.autoapplyjobs.platform.company.Company}
+ * (e.g. a dedup/canonicalization correction). {@code dedup_fingerprint} and
  * {@code canonical_apply_url_hash} are candidate/strong deduplication
  * signals only, deliberately <strong>not</strong> unique at all (indexed
  * for lookup) - this step's tests prove duplicates of both are accepted.
@@ -65,14 +73,14 @@ public class Job {
     private UUID id;
 
     /**
-     * Part of the job's identity tuple (with {@link #requisitionId}) - see
-     * the class Javadoc. Treated as non-updatable on the reasoning that a
-     * job's owning company is fixed once established, but this is a
-     * judgment call, not a certainty the schema/design documents settle
-     * explicitly - flagged in this step's final report.
+     * Canonical/correctable, not fixed identity: a job may later be
+     * reassigned to a different, already-canonical {@link Company} (e.g. a
+     * dedup/canonicalization correction) - see the class Javadoc. JPA-
+     * updatable accordingly. No enrichment/reassignment service exists
+     * yet; this only makes the mapping itself correct for when one does.
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "company_id", nullable = false, updatable = false)
+    @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
     @Column(name = "title", nullable = false)
@@ -85,12 +93,14 @@ public class Job {
     private String description;
 
     /**
-     * The other half of the job's identity tuple (with {@link #company}) -
-     * see the class Javadoc. Also non-updatable on the same judgment-call
-     * basis, flagged alongside {@link #company} in this step's final
-     * report.
+     * Canonical/enrichable, not fixed identity: a job may be created with
+     * no {@code requisition_id} and gain one once a source provides it -
+     * see the class Javadoc. JPA-updatable accordingly. The partial unique
+     * index ({@code uq_job_company_requisition}) still applies whenever
+     * this becomes non-null, enforced by PostgreSQL regardless of whether
+     * the value was set at insert or added later.
      */
-    @Column(name = "requisition_id", updatable = false)
+    @Column(name = "requisition_id")
     private String requisitionId;
 
     @Column(name = "canonical_apply_url")

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -261,6 +262,59 @@ class JobEntityTest {
                 .setParameter("companyId", company.getId())
                 .setParameter("now", now)
                 .executeUpdate())
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    // --- Mutability re-clarification: company and requisitionId are
+    // canonical/correctable, not fixed identity. Job has no setters by
+    // design, so these tests use ReflectionTestUtils to mutate the private
+    // fields directly - proving Hibernate's dirty-checking honors the JPA
+    // "updatable" mapping itself, independent of whether any service-level
+    // enrichment/reassignment API exists yet (it doesn't). ---
+
+    @Test
+    void aJobCreatedWithNullRequisitionIdCanLaterReceiveOne() {
+        Company company = persistCompany("Acme Corp", "acme corp");
+        Job job = entityManager.persistAndFlush(fullJob(company, null, "fp-12", "hash-12"));
+        UUID id = job.getId();
+        assertThat(job.getRequisitionId()).isNull();
+
+        ReflectionTestUtils.setField(job, "requisitionId", "REQ-12-LATER");
+        entityManager.persistAndFlush(job);
+        entityManager.clear();
+
+        Job reloaded = entityManager.find(Job.class, id);
+        assertThat(reloaded.getRequisitionId()).isEqualTo("REQ-12-LATER");
+    }
+
+    @Test
+    void aJobCanLaterBeReassignedToAnotherExistingCompany() {
+        Company originalCompany = persistCompany("Acme Corp", "acme corp");
+        Company correctCompany = persistCompany("Acme Corp Holdings", "acme corp holdings");
+        Job job = entityManager.persistAndFlush(fullJob(originalCompany, "REQ-13", "fp-13", "hash-13"));
+        UUID id = job.getId();
+
+        ReflectionTestUtils.setField(job, "company", correctCompany);
+        entityManager.persistAndFlush(job);
+        entityManager.clear();
+
+        Job reloaded = entityManager.find(Job.class, id);
+        assertThat(reloaded.getCompany().getId()).isEqualTo(correctCompany.getId());
+        assertThat(reloaded.getCompany().getId()).isNotEqualTo(originalCompany.getId());
+    }
+
+    @Test
+    void partialUniqueConstraintStillRejectsAConflictingCompanyAndRequisitionIdCombination() {
+        Company company = persistCompany("Acme Corp", "acme corp");
+        entityManager.persistAndFlush(fullJob(company, "REQ-14-TAKEN", "fp-14a", "hash-14a"));
+        Job second = entityManager.persistAndFlush(fullJob(company, "REQ-14-OTHER", "fp-14b", "hash-14b"));
+
+        // Mutate the second job's requisitionId to collide with the
+        // first's - proves the partial unique index is enforced on
+        // UPDATE too, not just INSERT.
+        ReflectionTestUtils.setField(second, "requisitionId", "REQ-14-TAKEN");
+
+        assertThatThrownBy(() -> entityManager.persistAndFlush(second))
                 .isInstanceOf(PersistenceException.class);
     }
 }

@@ -1,0 +1,50 @@
+-- V3__require_raw_job_processing_normalizer_version.sql
+--
+-- Resolves a real schema/design inconsistency discovered while mapping
+-- RawJobProcessing (see docs/database-design.md and the RawJobProcessing
+-- mapping step). V1__initial_schema.sql is frozen and not modified - this
+-- is an additive correction, not a redesign of the logical rule.
+--
+-- Problem: raw_job_processing represents the processing state for exactly
+-- one (raw_job_posting_id, normalizer_version) pair - that pair is this
+-- table's identity, per docs/database-design.md and CLAUDE.md. But V1
+-- left normalizer_version nullable ("required once PROCESSED"), which is
+-- inconsistent with treating it as identity: an identity column cannot be
+-- unknown at row creation and filled in later, and because standard SQL
+-- unique-constraint semantics never treat two NULLs as equal,
+-- uq_raw_job_processing_posting_normalizer does not even prevent multiple
+-- NULL-normalizer_version rows for the same raw_job_posting_id - the same
+-- class of gap V2__fix_job_location_uniqueness.sql fixed for job_location.
+--
+-- Design clarification (this migration encodes it): the normalizer
+-- version must be known before a processing record is created. A
+-- RawJobProcessing row is created only after the application has already
+-- selected which normalizer will process a given raw posting - never as a
+-- generic placeholder with normalizer_version = NULL. Retries update the
+-- existing row for the same (raw_job_posting_id, normalizer_version);
+-- choosing a different normalizer version is a different RawJobProcessing
+-- row, not a mutation of an existing one.
+--
+-- Fix: make normalizer_version NOT NULL. The logical key and its
+-- enforcement are otherwise unchanged - still exactly
+-- (raw_job_posting_id, normalizer_version), still a plain UNIQUE
+-- constraint (no NULLS NOT DISTINCT needed or added: the column can no
+-- longer be NULL at all, so that refinement doesn't apply here the way it
+-- did for job_location's nullable city/state_region columns).
+--
+-- No data is modified, deleted, or merged by this migration - there is no
+-- DML here at all, and no value is guessed for any existing NULL row. If
+-- any raw_job_processing row with normalizer_version IS NULL already
+-- exists, the ALTER COLUMN below fails outright (migration failure)
+-- rather than silently populating or discarding it. On a fresh/empty
+-- raw_job_processing table (the only state this schema has ever existed
+-- in, per this project's migration history) this succeeds unconditionally.
+--
+-- Out of scope, unchanged by this migration: raw_job_posting ownership
+-- (still job-ingestion-service's exclusively), raw_job_posting_id's
+-- mapping as a plain UUID scalar in job-platform-service (no
+-- RawJobPosting JPA entity), and every other column/constraint on
+-- raw_job_processing.
+
+ALTER TABLE raw_job_processing
+    ALTER COLUMN normalizer_version SET NOT NULL;

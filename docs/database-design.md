@@ -91,7 +91,7 @@ exclusively and it is never modified after insert.
 | raw_job_posting_id | UUID | NOT NULL | FK → raw_job_posting.id |
 | processing_status | TEXT | NOT NULL | `PENDING` / `PROCESSING` / `PROCESSED` / `FAILED`; default `PENDING` |
 | job_source_id | UUID | NULL | FK → job_source.id, `ON DELETE SET NULL` |
-| normalizer_version | TEXT | NULL | required once `PROCESSED` |
+| normalizer_version | TEXT | NOT NULL | required at creation, as of `V3` |
 | processed_at | TIMESTAMPTZ | NULL | |
 | error_message | TEXT | NULL | |
 | attempt_count | INTEGER | NOT NULL | default 0 |
@@ -103,6 +103,23 @@ posting + normalizer version. Retries **update this row in place**
 (`processing_status`, `attempt_count`, `error_message`, `processed_at`); no
 per-attempt history table. Indexes: `processing_status WHERE
 processing_status = 'PENDING'`, `raw_job_posting_id`, `job_source_id`.
+
+**History:** V1 defined `normalizer_version` as nullable, with the note
+"required once `PROCESSED`" — implying a row could be created generically
+and have its normalizer version filled in later. That was inconsistent
+with `(raw_job_posting_id, normalizer_version)` being this table's
+identity: an identity column can't be unknown at creation and set
+afterward, and because standard SQL unique-constraint semantics never
+treat two `NULL`s as equal, the uniqueness rule didn't even prevent
+multiple `NULL`-normalizer_version rows for the same posting (the same
+class of gap fixed for `job_location` in `V2`). Corrected in
+`V3__require_raw_job_processing_normalizer_version.sql`: the normalizer
+version must be known and supplied *when the processing record is
+created* — a `RawJobProcessing` row is created only after the application
+has already selected which normalizer will process a given raw posting,
+never as a generic placeholder. Choosing a different normalizer version
+means creating a different row, not mutating an existing one.
+`V1__initial_schema.sql` itself was not modified.
 
 ### job
 

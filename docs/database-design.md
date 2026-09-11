@@ -343,20 +343,40 @@ Deliberately denormalized (array columns) for simplicity.
 | job_id | UUID | NOT NULL | FK → job.id, `ON DELETE CASCADE` |
 | resume_id | UUID | NOT NULL | FK → resume.id, `ON DELETE CASCADE` |
 | algorithm_version | TEXT | NOT NULL | |
-| overall_score | NUMERIC(5,2) | NOT NULL | |
-| skills_score | NUMERIC(5,2) | NULL | |
-| experience_score | NUMERIC(5,2) | NULL | |
-| title_score | NUMERIC(5,2) | NULL | |
-| responsibility_score | NUMERIC(5,2) | NULL | |
-| education_score | NUMERIC(5,2) | NULL | |
-| location_score | NUMERIC(5,2) | NULL | |
-| preference_score | NUMERIC(5,2) | NULL | |
+| overall_score | NUMERIC(5,2) | NOT NULL | normalized percentage, `0.00`–`100.00` inclusive, as of `V4` |
+| skills_score | NUMERIC(5,2) | NULL | normalized percentage, `0.00`–`100.00` inclusive when present, as of `V4` |
+| experience_score | NUMERIC(5,2) | NULL | normalized percentage, `0.00`–`100.00` inclusive when present, as of `V4` |
+| title_score | NUMERIC(5,2) | NULL | normalized percentage, `0.00`–`100.00` inclusive when present, as of `V4` |
+| responsibility_score | NUMERIC(5,2) | NULL | normalized percentage, `0.00`–`100.00` inclusive when present, as of `V4` |
+| education_score | NUMERIC(5,2) | NULL | normalized percentage, `0.00`–`100.00` inclusive when present, as of `V4` |
+| location_score | NUMERIC(5,2) | NULL | normalized percentage, `0.00`–`100.00` inclusive when present, as of `V4` |
+| preference_score | NUMERIC(5,2) | NULL | normalized percentage, `0.00`–`100.00` inclusive when present, as of `V4` |
 | computed_at | TIMESTAMPTZ | NOT NULL | |
 | created_at | TIMESTAMPTZ | NOT NULL | |
 
 Unique: `(job_id, resume_id, algorithm_version)` — this is the identity of
 a `job_match`; recompute events upsert this row. Indexes: `resume_id`,
 `job_id`.
+
+**Score semantics:** every score column — `overall_score` and all seven
+per-dimension sub-scores — is a normalized percentage in the range `0.00`
+through `100.00` inclusive, enforced by one `CHECK` constraint per column
+(`chk_job_match_<column>_range`). A sub-score is the category's own
+normalized percentage, **not** its already-weighted contribution to
+`overall_score`: future matching weights (e.g. skills 40%, experience
+20%, title 15%, responsibilities 10%, education 5%, location 5%,
+preferences 5%) are applied by matching logic when computing
+`overall_score` from the sub-scores, not baked into the sub-score values
+themselves. NULL sub-scores remain valid regardless of the range
+constraint — a NULL comparison is `UNKNOWN`, not `FALSE`, so
+PostgreSQL's `CHECK` does not reject it; this is how "this algorithm
+version doesn't compute this dimension" stays expressible.
+
+**History:** V1 defined these columns as plain `NUMERIC(5,2)` with no
+range constraint, which let clearly-invalid scores (e.g. outside 0–100)
+be persisted without error. Confirmed empirically, then corrected in
+`V4__constrain_job_match_scores.sql`. `V1__initial_schema.sql` itself was
+not modified.
 
 ### job_match_skill
 

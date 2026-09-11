@@ -30,6 +30,33 @@ computes it:
 - `location_score`
 - `preference_score`
 
+Every score — `overall_score` and all seven sub-scores — is a **normalized
+percentage in the range 0.00 through 100.00 inclusive**, enforced by a
+database `CHECK` constraint per column (`V4__constrain_job_match_scores.sql`;
+see `docs/database-design.md`). A sub-score is the category's own
+normalized percentage, computed independently for that dimension — it is
+**not** its already-weighted contribution to `overall_score`. Weighting is
+applied by matching logic when it combines the sub-scores into
+`overall_score`, not baked into the sub-score values themselves. For
+example, an eventual weighting scheme might be:
+
+| Dimension | Weight |
+|---|---|
+| Skills | 40% |
+| Experience | 20% |
+| Title | 15% |
+| Responsibilities | 10% |
+| Education | 5% |
+| Location | 5% |
+| Preferences | 5% |
+
+Under such a scheme, a `skills_score` of `80.00` means "this resume scored
+80% on the skills dimension" — matching logic would then apply the 40%
+weight when folding it into `overall_score`, not store `32.00` (`80 × 0.40`)
+in `skills_score` itself. This weighting scheme is illustrative of the
+*shape* of the calculation, not an implementation — no matching algorithm
+is implemented as part of the schema/persistence layer.
+
 `job_match_skill` gives the skill-level detail behind `skills_score`: for
 each relevant skill, a `match_status` of `MATCHED`, `PARTIAL`, or `MISSING`
 (not a plain boolean, so "resume mentions a related but not exact skill"

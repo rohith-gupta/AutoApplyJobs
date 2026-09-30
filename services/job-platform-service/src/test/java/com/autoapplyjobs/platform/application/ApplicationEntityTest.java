@@ -33,7 +33,10 @@ import static org.assertj.core.api.Assertions.within;
  * {@code NUMERIC(5,2)} precision, {@link ApplicationStatus} enum mapping
  * and its CHECK constraint, the absence of {@code (user_id, job_id)}
  * uniqueness (reapplication), every FK's {@code ON DELETE} behavior,
- * lazy relationships, DB-generated columns, and per-field mutability.
+ * lazy relationships, DB-generated columns, per-field mutability, and the
+ * {@code job_match_score_at_application} {@code 0.00}-{@code 100.00}
+ * range {@code CHECK} constraint added by
+ * {@code V6__constrain_application_frozen_score.sql}.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -267,6 +270,102 @@ class ApplicationEntityTest {
         assertThatThrownBy(() -> entityManager.persistAndFlush(new Application(user, job, resume, null, null,
                 new BigDecimal("1000.00"), Instant.now(), ApplicationStatus.APPLIED, null)))
                 .isInstanceOf(PersistenceException.class);
+    }
+
+    // --- job_match_score_at_application 0-100 range, added by
+    // V6__constrain_application_frozen_score.sql. Mirrors job_match's own
+    // score-range constraints (V4): the frozen snapshot represents the
+    // same normalized 0.00-100.00 percentage as the live overall_score it
+    // was copied from, and NULL remains valid (no score captured). ---
+
+    @Test
+    void aFrozenScoreOfZeroSucceeds() {
+        User user = persistUser("app-10b@example.com");
+        Job job = newJob("afp-10b");
+        Resume resume = persistResume(user, 1);
+
+        Application persisted = entityManager.persistAndFlush(new Application(user, job, resume, null, null,
+                new BigDecimal("0.00"), Instant.now(), ApplicationStatus.APPLIED, null));
+
+        assertThat(persisted.getJobMatchScoreAtApplication()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void aFrozenScoreOfOneHundredSucceeds() {
+        User user = persistUser("app-10c@example.com");
+        Job job = newJob("afp-10c");
+        Resume resume = persistResume(user, 1);
+
+        Application persisted = entityManager.persistAndFlush(new Application(user, job, resume, null, null,
+                new BigDecimal("100.00"), Instant.now(), ApplicationStatus.APPLIED, null));
+
+        assertThat(persisted.getJobMatchScoreAtApplication()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void aFrozenScoreBelowZeroFails() {
+        User user = persistUser("app-10d@example.com");
+        Job job = newJob("afp-10d");
+        Resume resume = persistResume(user, 1);
+
+        assertThatThrownBy(() -> entityManager.persistAndFlush(new Application(user, job, resume, null, null,
+                new BigDecimal("-0.01"), Instant.now(), ApplicationStatus.APPLIED, null)))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    void aFrozenScoreAboveOneHundredFails() {
+        User user = persistUser("app-10e@example.com");
+        Job job = newJob("afp-10e");
+        Resume resume = persistResume(user, 1);
+
+        assertThatThrownBy(() -> entityManager.persistAndFlush(new Application(user, job, resume, null, null,
+                new BigDecimal("100.01"), Instant.now(), ApplicationStatus.APPLIED, null)))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    void aNativeInsertWithAnOutOfRangeFrozenScoreIsRejectedByPostgres() {
+        // Bypasses the Application entity entirely via a native insert, to
+        // prove PostgreSQL's chk_application_frozen_score_range CHECK
+        // constraint itself rejects an out-of-range value - independent of
+        // the JPA mapping.
+        User user = persistUser("app-10f@example.com");
+        Job job = newJob("afp-10f");
+        Resume resume = persistResume(user, 1);
+
+        assertThatThrownBy(() -> entityManager.getEntityManager()
+                .createNativeQuery("""
+                        INSERT INTO application (user_id, job_id, resume_id, applied_at, job_match_score_at_application)
+                        VALUES (:userId, :jobId, :resumeId, now(), 150.00)
+                        """)
+                .setParameter("userId", user.getId())
+                .setParameter("jobId", job.getId())
+                .setParameter("resumeId", resume.getId())
+                .executeUpdate())
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    void aNativeInsertWithANullFrozenScoreStillSucceedsAgainstTheRangeConstraint() {
+        // Direct proof that the CHECK constraint doesn't reject NULL,
+        // independent of the JPA mapping.
+        User user = persistUser("app-10g@example.com");
+        Job job = newJob("afp-10g");
+        Resume resume = persistResume(user, 1);
+
+        Object insertedId = entityManager.getEntityManager()
+                .createNativeQuery("""
+                        INSERT INTO application (user_id, job_id, resume_id, applied_at, job_match_score_at_application)
+                        VALUES (:userId, :jobId, :resumeId, now(), NULL)
+                        RETURNING id
+                        """)
+                .setParameter("userId", user.getId())
+                .setParameter("jobId", job.getId())
+                .setParameter("resumeId", resume.getId())
+                .getSingleResult();
+
+        assertThat(insertedId).isNotNull();
     }
 
     // --- reapplication (no uniqueness on user_id, job_id) ---

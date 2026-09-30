@@ -25,9 +25,10 @@ import java.util.UUID;
 
 /**
  * Maps to the {@code application} table exactly as defined in
- * {@code db/migration/V1__initial_schema.sql} (the source of truth) and
- * described in {@code docs/database-design.md}. No discrepancy between the
- * two was found for this table.
+ * {@code db/migration/V1__initial_schema.sql} as amended by
+ * {@code V6__constrain_application_frozen_score.sql} (the source of
+ * truth) and described in {@code docs/database-design.md}. No
+ * discrepancy between the two was found for this table.
  *
  * <p>Records that a {@link User} applied to a {@link Job} using one
  * specific {@link Resume} version, with the match score at that moment
@@ -56,7 +57,13 @@ import java.util.UUID;
  *   <li>{@code jobMatchScoreAtApplication} - {@code updatable = false}.
  *       Documented as a frozen snapshot, independent of the live
  *       {@code job_match} row it came from
- *       ({@code docs/matching-design.md}).</li>
+ *       ({@code docs/matching-design.md}). As of
+ *       {@code V6__constrain_application_frozen_score.sql}, PostgreSQL
+ *       additionally enforces {@code NULL} or {@code 0.00}-{@code 100.00}
+ *       inclusive when present - the same normalized-percentage range
+ *       {@code V4} already enforces on the live
+ *       {@code job_match.overall_score} this column is frozen from; being
+ *       a frozen copy doesn't change what the value represents.</li>
  *   <li>{@code jobMatch}, {@code appliedViaJobSource} - {@code updatable =
  *       false}. Not specified by the docs; confirmed with the project
  *       owner during this mapping step: both record application-time facts

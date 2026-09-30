@@ -481,6 +481,17 @@ current_status, applied_at DESC) WHERE archived_at IS NULL`.
 
 Never hard-deleted — archived via `archived_at` instead.
 
+**Mutability (entity mapping):** `user_id`, `job_id`, `resume_id`,
+`job_match_id`, `applied_via_job_source_id`,
+`job_match_score_at_application`, and `applied_at` are application-time
+facts, fixed once the row is created (`job_match_id` /
+`applied_via_job_source_id` may still be set to `NULL` by their
+`ON DELETE SET NULL` FKs). `current_status`, `external_application_url`,
+and `archived_at` are mutable. The `job_match_id` /
+`applied_via_job_source_id` / `external_application_url` rules were not
+previously specified and were confirmed by the project owner while mapping
+`Application`.
+
 ### application_status_history
 
 | Column | Type | Null | Notes |

@@ -466,7 +466,7 @@ hard-deleted.
 | resume_id | UUID | NOT NULL | FK → resume.id, `ON DELETE RESTRICT` — exact version used |
 | job_match_id | UUID | NULL | FK → job_match.id, `ON DELETE SET NULL` |
 | applied_via_job_source_id | UUID | NULL | FK → job_source.id, `ON DELETE SET NULL` |
-| job_match_score_at_application | NUMERIC(5,2) | NULL | frozen snapshot, independent of `job_match_id` |
+| job_match_score_at_application | NUMERIC(5,2) | NULL | frozen snapshot, independent of `job_match_id`; `0.00`–`100.00` inclusive when present, as of `V6` |
 | applied_at | TIMESTAMPTZ | NOT NULL | |
 | current_status | TEXT | NOT NULL | see statuses below; default `APPLIED` |
 | external_application_url | TEXT | NULL | |
@@ -480,6 +480,26 @@ Indexes: `(user_id, job_id)` (plain), `resume_id`, `current_status`,
 current_status, applied_at DESC) WHERE archived_at IS NULL`.
 
 Never hard-deleted — archived via `archived_at` instead.
+
+**Mutability (entity mapping):** `user_id`, `job_id`, `resume_id`,
+`job_match_id`, `applied_via_job_source_id`,
+`job_match_score_at_application`, and `applied_at` are application-time
+facts, fixed once the row is created (`job_match_id` /
+`applied_via_job_source_id` may still be set to `NULL` by their
+`ON DELETE SET NULL` FKs). `current_status`, `external_application_url`,
+and `archived_at` are mutable. The `job_match_id` /
+`applied_via_job_source_id` / `external_application_url` rules were not
+previously specified and were confirmed by the project owner while mapping
+`Application`.
+
+**History:** V1 defined `job_match_score_at_application` as a plain
+`NUMERIC(5,2)` with no range constraint, even though it freezes
+`job_match.overall_score` - a value `V4` already bounds to `0.00`–`100.00`
+on `job_match` itself. Being a frozen copy doesn't change what it
+represents, so the same gap existed here. Corrected in
+`V6__constrain_application_frozen_score.sql`, using the same NULL-aware
+`CHECK` shape as `V5` (the column remains nullable).
+`V1__initial_schema.sql` itself was not modified.
 
 ### application_status_history
 

@@ -386,10 +386,49 @@ not modified.
 | job_match_id | UUID | NOT NULL | FK → job_match.id, `ON DELETE CASCADE` |
 | skill_id | UUID | NOT NULL | FK → skill.id, `ON DELETE RESTRICT` |
 | match_status | TEXT | NOT NULL | `MATCHED` / `PARTIAL` / `MISSING` |
-| weight | NUMERIC(5,2) | NULL | |
+| weight | NUMERIC(5,2) | NULL | relative skill-importance coefficient, `>= 0` when present, as of `V5` |
 | created_at | TIMESTAMPTZ | NOT NULL | |
 
 Unique: `(job_match_id, skill_id)`. Index: `job_match_id`.
+
+**`weight` semantics:** `weight` is a **relative skill-importance
+coefficient**, used by a matching algorithm when aggregating individual
+skill-match results into `job_match.skills_score`. It is explicitly
+**not**: a match-quality percentage (that's `match_status`), a `0`–`100`
+score (unlike `job_match`'s own score columns), the already-weighted
+contribution to `overall_score`, or the same thing as
+`job_skill.is_required`.
+
+- `weight` is nullable. `NULL` means no explicit per-skill weight was
+  persisted; the relevant algorithm version may apply its own default
+  during calculation.
+- When present, `weight` must be `>= 0` (enforced by
+  `chk_job_match_skill_weight_non_negative`, added in
+  `V5__constrain_job_match_skill_weight.sql`) — negative relative
+  importance has no valid domain meaning.
+- `0.00` is valid and means the skill contributes zero relative weight
+  while still being representable for explanation/detail.
+- Positive values are relative coefficients: their magnitude only has
+  meaning relative to other per-skill weights interpreted by the same
+  algorithm version. Weights for one `job_match` are **not** required to
+  sum to `1` and are **not** required to sum to `100` — `weight` is not a
+  percentage, so there is no **domain-semantic** upper bound such as `1`
+  or `100`. This is distinct from the column's ordinary representational
+  limit: `weight` remains `NUMERIC(5,2)`, which still permits at most 3
+  digits before the decimal point. A value such as `250.00` is therefore
+  valid, while a value such as `1000.00` remains invalid — not because of
+  `V5`'s `weight >= 0` semantic `CHECK` constraint, but because it exceeds
+  what `NUMERIC(5,2)` can represent.
+- How `match_status` (`MATCHED`/`PARTIAL`/`MISSING`) converts to a
+  numeric value, and how `job_skill.is_required` might influence a chosen
+  `weight`, are matching-algorithm concerns — neither is implemented or
+  hard-coded in persistence.
+
+**History:** V1 defined `weight` with no documented semantics and no
+constraint on its value. A repository-wide audit confirmed no source
+defined its meaning, unit, range, or NULL behavior. Resolved as above and
+enforced in `V5__constrain_job_match_skill_weight.sql`.
+`V1__initial_schema.sql` itself was not modified.
 
 ### saved_job
 

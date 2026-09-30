@@ -1,0 +1,44 @@
+-- V5__constrain_job_match_skill_weight.sql
+--
+-- Resolves the previously-undefined semantics of job_match_skill.weight,
+-- following a repository-wide audit that found no source defining them
+-- (see docs/database-design.md and docs/matching-design.md).
+-- V1__initial_schema.sql through V4 are frozen and not modified - this is
+-- an additive clarification, not a redesign of the logical rule.
+--
+-- Resolved design: job_match_skill.weight is a relative skill-importance
+-- coefficient, used by a matching algorithm when aggregating individual
+-- skill-match results into job_match.skills_score. It is explicitly NOT:
+--   - a match-quality percentage (that's match_status: MATCHED/PARTIAL/MISSING)
+--   - a 0-100 score (unlike job_match's own score columns, constrained by V4)
+--   - the already-weighted contribution to overall_score
+--   - the same thing as job_skill.is_required
+--
+-- weight remains nullable: NULL means no explicit per-skill weight was
+-- persisted, and the relevant algorithm version may apply its own default
+-- during calculation. When present, weight must be >= 0 - negative
+-- relative importance has no valid domain meaning. 0.00 is valid: a skill
+-- can contribute zero relative weight while still being representable for
+-- explanation/detail. Positive values are relative coefficients only
+-- meaningful against other per-skill weights interpreted by the same
+-- algorithm version - weights for one job_match are NOT required to sum
+-- to 1 or to 100, and weight is not a percentage, so no upper bound is
+-- added here (unlike job_match's own scores). How match_status converts
+-- to a numeric value, and how job_skill.is_required might influence a
+-- chosen weight, are matching-algorithm concerns, not persistence
+-- concerns - neither is implemented or hard-coded here.
+--
+-- Fix: add a single CHECK constraint allowing NULL or any value >= 0.
+-- NUMERIC(5,2) is unchanged - still the type, still the precision/scale.
+-- weight remains nullable - not made NOT NULL. No upper bound is added.
+--
+-- No data is modified, deleted, or merged by this migration - there is no
+-- DML here at all. If any existing job_match_skill row already has a
+-- negative weight, the ADD CONSTRAINT below fails outright (migration
+-- failure) rather than silently clamping or discarding it. On a
+-- fresh/empty job_match_skill table (the only state this schema has ever
+-- existed in, per this project's migration history) this succeeds
+-- unconditionally.
+
+ALTER TABLE job_match_skill
+    ADD CONSTRAINT chk_job_match_skill_weight_non_negative CHECK (weight IS NULL OR weight >= 0);

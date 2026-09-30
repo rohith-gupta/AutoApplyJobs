@@ -60,7 +60,49 @@ is implemented as part of the schema/persistence layer.
 `job_match_skill` gives the skill-level detail behind `skills_score`: for
 each relevant skill, a `match_status` of `MATCHED`, `PARTIAL`, or `MISSING`
 (not a plain boolean, so "resume mentions a related but not exact skill"
-has somewhere to go).
+has somewhere to go), plus an optional `weight`.
+
+### `job_match_skill.weight`
+
+`weight` is a **relative skill-importance coefficient**, used by a
+matching algorithm when aggregating individual skill-match results into
+`skills_score`. It is a different kind of "weight" from the
+dimension-level weighting table above (Skills 40%, Experience 20%, ...):
+that table weights whole *dimensions* when composing `overall_score`;
+`job_match_skill.weight` weights individual *skills* when composing the
+`skills_score` dimension itself. Neither is implemented as matching logic
+here - both are schema-level facts only.
+
+`weight` is explicitly **not**:
+- a match-quality percentage (`match_status` carries that)
+- a `0.00`–`100.00` score like `job_match`'s own columns
+- the already-weighted contribution to `overall_score`
+- the same thing as `job_skill.is_required`
+
+Rules:
+- Nullable. `NULL` means no explicit per-skill weight was persisted; the
+  algorithm version in question may apply its own default during
+  calculation.
+- When present, `weight` must be `>= 0` (database-enforced by
+  `V5__constrain_job_match_skill_weight.sql`) - negative relative
+  importance has no valid domain meaning.
+- `0.00` is valid: a skill can contribute zero relative weight while
+  still being representable for explanation/detail.
+- Positive values are relative coefficients. Their magnitude only has
+  meaning relative to other per-skill weights interpreted by the *same*
+  algorithm version - weights for one `job_match` are not required to sum
+  to `1`, are not required to sum to `100`, and `weight` is not a
+  percentage, so there is no **domain-semantic** upper bound such as `1`
+  or `100`. This is distinct from the column's ordinary representational
+  limit: `weight` remains `NUMERIC(5,2)`, which still permits at most 3
+  digits before the decimal point. A value such as `250.00` is therefore
+  valid, while a value such as `1000.00` remains invalid - not because of
+  `V5`'s `weight >= 0` semantic `CHECK` constraint, but because it exceeds
+  what `NUMERIC(5,2)` can represent.
+- How `MATCHED`/`PARTIAL`/`MISSING` convert to a numeric value, and how
+  `job_skill.is_required` might influence a chosen `weight`, are future
+  matching-algorithm decisions - not persisted or hard-coded as a direct
+  mapping.
 
 ## Inputs
 
